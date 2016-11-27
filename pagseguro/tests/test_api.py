@@ -5,10 +5,13 @@ from decimal import Decimal
 import httpretty
 from dateutil.parser import parse
 
-from pagseguro.api import PagSeguroItem, PagSeguroApi, PagSeguroApiTransparent
+from pagseguro.api import (
+    PagSeguroItem, PagSeguroApi, PagSeguroApiTransparent,
+    PagSeguroApiPreApprovals
+)
 from pagseguro.settings import (
-    CHECKOUT_URL, PAYMENT_URL, NOTIFICATION_URL,
-    TRANSACTION_URL, SESSION_URL
+    CHECKOUT_URL, PAYMENT_URL, NOTIFICATION_URL, TRANSACTION_URL, SESSION_URL,
+    PRE_APPROVALS_URL, PRE_APPROVALS_REDIRECT_URL
 )
 
 
@@ -670,3 +673,60 @@ class PagSeguroApiTransparentTest(TestCase):
         self.assertEqual(data['success'], False)
         self.assertEqual(data['message'], 'Unauthorized')
         self.assertEqual(data['status_code'], 401)
+
+
+pre_aprovals_response_xml = '''<?xml version="1.0" encoding="UTF-8"?>
+<preApprovalRequest>
+  <code>387754205656E57224FBEF94C2CD52E5</code>
+  <date>2016-11-27T17:43:22-02:00</date>
+</preApprovalRequest>
+'''
+
+
+class PagSeguroApiPreApprovalsTest(TestCase):
+
+    def setUp(self):
+        self.pagseguro_pre_approvals_api = PagSeguroApiPreApprovals()
+
+    def test_set_sender(self):
+        sender = {
+            'name': 'Jose Comprador',
+            'area_code': 11,
+            'phone': 56273440,
+            'email': 'comprador@uol.com.br',
+            'cpf': '22111944785',
+        }
+        self.pagseguro_pre_approvals_api.set_sender(**sender)
+        params = self.pagseguro_pre_approvals_api.params
+        self.assertEqual(params['senderName'], sender['name'])
+        self.assertEqual(params['senderAreaCode'], sender['area_code'])
+        self.assertEqual(params['senderPhone'], sender['phone'])
+        self.assertEqual(params['senderEmail'], sender['email'])
+        self.assertEqual(params['senderCPF'], sender['cpf'])
+
+    def test_set_pre_approval_data(self):
+        data = {
+            'name': 'Seguro contra roubo de Notebook',
+            'amount_per_payment': '100.00',
+            'period': 'Monthly',
+            'final_date': parse('2020-11-27 00:00:00'),
+            'max_total_amount': 2400.00,
+            'charge': 'auto',
+            'details': 'Todo dia 28 será cobrado o valor de R$100,00',
+        }
+        self.pagseguro_pre_approvals_api.set_pre_approval_data(**data)
+        params = self.pagseguro_pre_approvals_api.params
+        self.assertEqual(params['preApprovalName'], data['name'])
+        self.assertEqual(
+            params['preApprovalAmountPerPayment'], data['amount_per_payment']
+        )
+        self.assertEqual(params['preApprovalPeriod'], data['period'])
+        self.assertEqual(
+            params['preApprovalFinalDate'], data['final_date'].isoformat()
+        )
+        self.assertEqual(
+            params['preApprovalMaxTotalAmount'],
+            data['max_total_amount']
+        )
+        self.assertEqual(params['preApprovalCharge'], data['charge'])
+        self.assertEqual(params['preApprovalDetails'], data['details'])

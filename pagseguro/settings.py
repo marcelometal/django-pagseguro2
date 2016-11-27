@@ -13,12 +13,16 @@ if PAGSEGURO_SANDBOX:
     NOTIFICATION_URL = 'https://ws.sandbox.pagseguro.uol.com.br/v2/transactions/notifications'
     TRANSACTION_URL = 'https://ws.sandbox.pagseguro.uol.com.br/v2/transactions'
     SESSION_URL = 'https://ws.sandbox.pagseguro.uol.com.br/v2/sessions/'
+    PRE_APPROVALS_URL = 'https://ws.sandbox.pagseguro.uol.com.br/v2/pre-approvals/request'
+    PRE_APPROVALS_REDIRECT_URL = 'https://sandbox.pagseguro.uol.com.br/v2/pre-approvals/request.html'
 else:
     CHECKOUT_URL = 'https://ws.pagseguro.uol.com.br/v2/checkout'
     PAYMENT_URL = 'https://pagseguro.uol.com.br/v2/checkout/payment.html'
     NOTIFICATION_URL = 'https://ws.pagseguro.uol.com.br/v2/transactions/notifications'
     TRANSACTION_URL = 'https://ws.pagseguro.uol.com.br/v2/transactions'
     SESSION_URL = 'https://ws.pagseguro.uol.com.br/v2/sessions/'
+    PRE_APPROVALS_URL = 'https://ws.pagseguro.uol.com.br/v2/pre-approvals/request'
+    PRE_APPROVALS_REDIRECT_URL = 'https://ws.pagseguro.uol.com.br/v2/pre-approvals/request.html'
 
 TRANSACTION_STATUS = {
     '1': 'aguardando',

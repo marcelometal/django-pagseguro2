@@ -2,7 +2,9 @@
 from __future__ import unicode_literals
 from django.contrib import admin
 
-from pagseguro.models import Checkout, Transaction, TransactionHistory
+from pagseguro.models import (
+    Checkout, Transaction, TransactionHistory, PreApprovals, PreApprovalsRequest
+)
 
 
 class CheckoutAdmin(admin.ModelAdmin):
@@ -28,11 +30,21 @@ class TransactionAdmin(admin.ModelAdmin):
     list_display = ('code', 'reference', 'status', 'date', 'last_event_date')
     list_display_links = ('code', )
     search_fields = ['code', 'reference']
-    list_filter = ('status', 'date', 'last_event_date')
+    list_filter = ('transaction_type', 'status', 'date', 'last_event_date')
     inlines = [
         TransactionHistoryInline,
     ]
 
 
+class PreApprovalsRequestAdmin(admin.ModelAdmin):
+
+    list_display = ('id', 'code', 'date', 'success',)
+    list_display_links = ('id', )
+    search_fields = ['code', ]
+    list_filter = ('date', 'success')
+
+
 admin.site.register(Checkout, CheckoutAdmin)
 admin.site.register(Transaction, TransactionAdmin)
+admin.site.register(PreApprovalsRequest, PreApprovalsRequestAdmin)
+admin.site.register(PreApprovals)

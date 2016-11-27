@@ -7,11 +7,14 @@ from dateutil.parser import parse
 
 from pagseguro.settings import (
     PAGSEGURO_EMAIL, PAGSEGURO_TOKEN, CHECKOUT_URL, PAYMENT_URL,
-    NOTIFICATION_URL, TRANSACTION_URL, SESSION_URL
+    NOTIFICATION_URL, TRANSACTION_URL, SESSION_URL, PRE_APPROVALS_URL,
+    PRE_APPROVALS_REDIRECT_URL
 )
 from pagseguro.signals import (
     notificacao_recebida, NOTIFICATION_STATUS, checkout_realizado,
-    checkout_realizado_com_sucesso, checkout_realizado_com_erro
+    checkout_realizado_com_sucesso, checkout_realizado_com_erro,
+    pre_approvals_realizado_com_sucesso, pre_approvals_realizado_com_erro,
+    pre_approvals_realizado
 )
 from pagseguro.forms import PagSeguroItemForm
 
@@ -54,6 +57,8 @@ class PagSeguroApi(object):
     redirect_url = PAYMENT_URL
     notification_url = NOTIFICATION_URL
     transaction_url = TRANSACTION_URL
+    pre_approvals_url = PRE_APPROVALS_URL
+    pre_approvals_redirect_url = PRE_APPROVALS_REDIRECT_URL
 
     def __init__(self, **kwargs):
         self.base_params = {
@@ -327,5 +332,104 @@ class PagSeguroApiTransparent(PagSeguroApi):
                 'date': timezone.now()
 
             }
+
+        return data
+
+
+class PagSeguroApiPreApprovals(PagSeguroApi):
+
+    def create(self, name, amount_per_payment, period, final_date,
+               max_total_amount, max_amount_per_payment='',
+               charge='auto', details='', redirect_code=''):
+
+        from pagseguro.models import PreApprovals
+
+        pre_approval = PreApprovals(
+            name=name,
+            amount_per_payment=amount_per_payment,
+            period=period.upper(),
+            final_date=final_date,
+            max_total_amount=max_total_amount,
+            charge=charge,
+            details=details,
+            reference=self.base_params.get('reference', ''),
+            redirect_code=redirect_code,
+        )
+        pre_approval.save()
+
+    def set_sender(self, name, area_code, phone, email, cpf, cnpj=None,
+                   born_date=None):
+
+        self.params['senderName'] = name
+        self.params['senderAreaCode'] = area_code
+        self.params['senderPhone'] = phone
+        self.params['senderEmail'] = email
+        self.params['senderCPF'] = cpf
+        self.params['senderCNPJ'] = cnpj
+        self.params['senderBornDate'] = born_date
+
+    def set_pre_approval_data(self, name, amount_per_payment, period,
+                              final_date, max_total_amount, charge='auto',
+                              details=''):
+
+        self.params['preApprovalName'] = name
+        self.params['preApprovalAmountPerPayment'] = amount_per_payment
+        self.params['preApprovalPeriod'] = period
+        self.params['preApprovalFinalDate'] = final_date.isoformat()
+        self.params['preApprovalMaxTotalAmount'] = max_total_amount
+        self.params['preApprovalCharge'] = charge
+        self.params['preApprovalDetails'] = details
+
+    def create_plan(self, *args, **kwargs):
+        kwargs['max_total_amount'] = '{0:.2f}'.format(
+            kwargs['max_total_amount']
+        )
+        kwargs['amount_per_payment'] = '{0:.2f}'.format(
+            kwargs['amount_per_payment']
+        )
+
+        self.set_pre_approval_data(**kwargs)
+
+        self.build_params()
+        headers = {
+            'content-type': 'application/x-www-form-urlencoded; charset=UTF-8'
+        }
+        response = requests.post(
+            self.pre_approvals_url, self.params, headers=headers
+        )
+
+        if response.status_code == 200:
+            root = xmltodict.parse(response.text)
+            pre_approval = root['preApprovalRequest']
+
+            try:
+                self.create(redirect_code=pre_approval['code'], **kwargs)
+            except Exception as e:
+                # FIXME
+                print str(e)
+                pre_approvals_realizado_com_erro.send(sender=self, data={})
+                return
+
+            data = {
+                'pre_approval': pre_approval,
+                'status_code': response.status_code,
+                'success': True,
+                'date': parse(pre_approval['date']),
+                'code': pre_approval['code'],
+                'redirect_url': '{0}?code={1}'.format(
+                    self.pre_approvals_redirect_url, pre_approval['code']
+                ),
+            }
+            pre_approvals_realizado_com_sucesso.send(sender=self, data=data)
+        else:
+            data = {
+                'status_code': response.status_code,
+                'message': response.text,
+                'success': False,
+                'date': timezone.now()
+            }
+            pre_approvals_realizado_com_erro.send(sender=self, data=data)
+
+        pre_approvals_realizado.send(sender=self, data=data)
 
         return data
